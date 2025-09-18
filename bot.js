@@ -11,7 +11,7 @@ puppeteer.use(StealthPlugin());
 puppeteer.use(RecaptchaPlugin({ 
   provider: { id: 'capsolver', token: process.env.CAPSOLVER_KEY }, 
   visualFeedback: true,
-  fallback: { id: '2captcha', token: process.env.TWOCAPTCHA_KEY } // Fallback per gpt.txt
+  fallback: { id: '2captcha', token: process.env.TWOCAPTCHA_KEY }
 }));
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -83,9 +83,9 @@ class SMSManager {
         const response = await fetch(url, { ...options, timeout: 30000, headers: { 'Authorization': `Bearer ${this.token}`, 'Accept': 'application/json', ...(options.headers || {}) } });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return await response.json();
-      } catch (error) {  // FIXED: Changed 'e' to 'error'
-        logger.warn(`SMS attempt ${attempt} failed: ${error.message}`);
-        if (attempt === this.maxRetries) throw error;
+      } catch (e) {
+        logger.warn(`SMS attempt ${attempt} failed: ${e.message}`);
+        if (attempt === this.maxRetries) throw e;
         await new Promise(r => setTimeout(r, this.retryDelay * attempt));
       }
     }
@@ -111,8 +111,8 @@ class SMSManager {
         if (code) { logger.success(`SMS after ${attempts} attempts`); return code; }
         logger.info(`SMS check ${attempts}: No code`);
         await new Promise(r => setTimeout(r, 10000));
-      } catch (error) {  // FIXED: Changed 'e' to 'error'
-        logger.warn(`SMS check ${attempts} failed: ${error.message}`);
+      } catch (e) {
+        logger.warn(`SMS check ${attempts} failed: ${e.message}`);
         if (attempts >= 5) break;
         await new Promise(r => setTimeout(r, 5000));
       }
@@ -120,7 +120,7 @@ class SMSManager {
     throw new Error(`SMS timeout after ${Math.round((Date.now() - start) / 1000)}s`);
   }
   async cancelOrder(id) {
-    try { await this.makeRequest(`${this.baseUrl}/cancel/${id}`); logger.success(`Cancelled ${id}`); } catch (error) { logger.warn(`Cancel failed for ${id}: ${error.message}`); }  // FIXED: Changed 'e' to 'error'
+    try { await this.makeRequest(`${this.baseUrl}/cancel/${id}`); logger.success(`Cancelled ${id}`); } catch (e) { logger.warn(`Cancel failed for ${id}: ${e.message}`); }
   }
 }
 
@@ -132,7 +132,7 @@ class RetryManager {
       try {
         logger.info(`Attempt ${attempt}/${maxRetries}`);
         return await operation();
-      } catch (error) {  // FIXED: Changed 'e' to 'error'
+      } catch (error) {
         lastError = error; logger.warn(`Attempt ${attempt} failed: ${error.message}`);
         if (attempt < maxRetries) {
           const delay = baseDelay * Math.pow(2, attempt - 1);
@@ -153,26 +153,23 @@ class HealthMonitor {
   }
   async checkBalances() {
     const checks = [];
-    // 5sim balance
     try {
       const simData = await fetch(`https://5sim.net/v1/user/balance`, { headers: { Authorization: `Bearer ${process.env.FIVESIM_TOKEN}` } }).then(r => r.json());
       checks.push(`📱 5sim: $${simData.balance || 0}`);
       if (simData.balance < 5) await this.bot.telegram.sendMessage(this.chatId, `⚠️ CRITICAL: 5sim low: $${simData.balance}`);
-    } catch (error) { checks.push('📱 5sim: ❌'); logger.error('5sim check failed', { error: error.message }); }  // FIXED: Changed 'e' to 'error'
-    // Browserless
+    } catch (e) { checks.push('📱 5sim: ❌'); logger.error('5sim check failed', { error: e.message }); }
     try {
       const browserData = await fetch(`https://api.browserless.io/usage?token=${process.env.BROWSERLESS_TOKEN}`).then(r => r.json());
       checks.push(`🖥️ Browserless: ${browserData.hoursRemaining || 0}h`);
       if (browserData.hoursRemaining < 20) await this.bot.telegram.sendMessage(this.chatId, `⚠️ WARNING: Browserless low: ${browserData.hoursRemaining}h`);
-    } catch (error) { checks.push('🖥️ Browserless: ❌'); logger.error('Browserless check failed', { error: error.message }); }  // FIXED: Changed 'e' to 'error'
-    // Capsolver
+    } catch (e) { checks.push('🖥️ Browserless: ❌'); logger.error('Browserless check failed', { error: e.message }); }
     try {
       const captchaData = await fetch('https://api.capsolver.com/getBalance', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientKey: process.env.CAPSOLVER_KEY })
       }).then(r => r.json());
       checks.push(`🤖 Capsolver: $${captchaData.balance || 0}`);
-    } catch (error) { checks.push('🤖 Capsolver: ❌'); logger.error('Capsolver check failed', { error: error.message }); }  // FIXED: Changed 'e' to 'error'
+    } catch (e) { checks.push('🤖 Capsolver: ❌'); logger.error('Capsolver check failed', { error: e.message }); }
     return checks;
   }
   async sendHealthReport() {
@@ -192,7 +189,7 @@ class HealthMonitor {
         `⏱️ Avg Time: ${Math.round(this.metrics.avgRuntime)}s`
       ].join('\n');
       await this.bot.telegram.sendMessage(this.chatId, report, { parse_mode: 'Markdown' });
-    } catch (error) { logger.error('Report failed', { error: error.message }); }  // FIXED: Changed 'e' to 'error'
+    } catch (e) { logger.error('Report failed', { error: e.message }); }
   }
   recordRun(success, runtime) {
     this.metrics.totalRuns++;
@@ -203,7 +200,7 @@ class HealthMonitor {
   }
 }
 const healthMonitor = new HealthMonitor(bot, process.env.CHAT_ID);
-setInterval(() => healthMonitor.sendHealthReport(), 6 * 60 * 60 * 1000); // 6 hours
+setInterval(() => healthMonitor.sendHealthReport(), 6 * 60 * 60 * 1000);
 
 // Enhanced Slot Detection (qwen.txt)
 async function findAvailableSlots(page, maxRetries = 3) {
@@ -240,7 +237,7 @@ async function findAvailableSlots(page, maxRetries = 3) {
           logger.success(`Earliest slot: ${earliest.date}`);
           return earliest.date;
         }
-      } catch (error) { logger.warn(`Slot strat ${strat + 1} retry ${retry + 1} failed: ${error.message}`); }  // FIXED: Changed 'e' to 'error'
+      } catch (error) { logger.warn(`Slot strat ${strat + 1} retry ${retry + 1} failed: ${error.message}`); }
     }
   }
   throw new Error('No slots found');
@@ -248,12 +245,12 @@ async function findAvailableSlots(page, maxRetries = 3) {
 
 // Main bookAppointment (wrapped in RetryManager)
 async function bookAppointment(config) {
+  let success = false; // Track success for health metrics
   const startTime = Date.now();
   const smsManager = new SMSManager();
   let browser;
-  let success = false;  // Track success for health monitoring
   try {
-    // Browserless reconnect (gpt.txt/qwen.txt)
+    // Browserless reconnect (gpt.txt/qwen.txt) - Fixed to handle error properly
     let retries = 0;
     while (retries < 3) {
       try {
@@ -262,9 +259,10 @@ async function bookAppointment(config) {
           defaultViewport: null
         });
         break;
-      } catch (error) {  // FIXED: Changed 'e' to 'error'
+      } catch (error) {
         retries++;
         if (retries === 3) throw new Error('Browserless connection failed');
+        logger.warn(`Browserless retry ${retries}/3: ${error.message}`);
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
@@ -292,7 +290,10 @@ async function bookAppointment(config) {
 
     // CAPTCHA (fallback per gpt.txt)
     const { solved } = await page.solveRecaptchas();
-    if (solved.length > 0) logger.success(`CAPTCHA solved for ${config.province}`);
+    if (solved.length > 0) {
+      logger.success(`CAPTCHA solved for ${config.province}`);
+      await bot.telegram.sendMessage(process.env.CHAT_ID, `✅ CAPTCHA solved for ${config.province}`);
+    }
 
     // Slot Polling with Enhanced Detection
     let slotFound = false; let delay = 30000;
@@ -302,7 +303,7 @@ async function bookAppointment(config) {
         slotFound = true;
         await bot.telegram.sendMessage(process.env.CHAT_ID, `🎉 Slot for ${config.province}: ${slotDate}`);
         break;
-      } catch (error) {  // FIXED: Changed 'e' to 'error'
+      } catch (error) {
         logger.warn(`Poll ${attempt + 1} for ${config.province}: ${error.message}`);
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 90000 });
         await new Promise(r => setTimeout(r, delay)); delay = Math.min(delay * 1.5, 300000);
@@ -329,7 +330,7 @@ async function bookAppointment(config) {
         await page.click('#btnConfirmar');
         await page.waitForSelector('.success, .confirmacion, [class*="success"]', { timeout: 10000 });
         break;
-      } catch (error) {  // FIXED: Changed 'e' to 'error'
+      } catch (error) {
         logger.warn(`Submit retry ${i + 1} for ${config.province}: ${error.message}`);
         if (i === 2) throw error;
       }
@@ -339,14 +340,14 @@ async function bookAppointment(config) {
     logger.success(`Booked ${config.province}`);
     success = true;
 
-  } catch (error) {  // FIXED: Changed 'e' to 'error'
+  } catch (error) {
     logger.error(`Booking failed for ${config.province}`, { error: error.message, critical: true, profile: config.province });
     await bot.telegram.sendMessage(process.env.CHAT_ID, `❌ Error ${config.province}: ${error.message}`);
     throw error;
   } finally {
     if (browser) await browser.close();
     const runtime = Math.round((Date.now() - startTime) / 1000);
-    healthMonitor.recordRun(success, runtime);  // Use the success variable we tracked
+    healthMonitor.recordRun(success, runtime);
   }
 }
 
@@ -368,7 +369,7 @@ async function main() {
     // Synthetic test: Always include a dummy row if marked 'test=true'
     const synthetic = configs.find(c => c.test); if (synthetic) logger.info('Running synthetic test');
     await Promise.all(configs.slice(0, 5).map(c => limit(() => RetryManager.executeWithRetry(() => bookAppointment(c)))));
-  } catch (error) {  // FIXED: Changed 'e' to 'error'
+  } catch (error) {
     logger.error('Main failed', { error: error.message, critical: true });
     await bot.telegram.sendMessage(process.env.CHAT_ID, `❌ Main error: ${error.message}`);
   }
