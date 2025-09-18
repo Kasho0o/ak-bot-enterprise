@@ -253,14 +253,20 @@ async function bookAppointment(config) {
   let browser;
   try {
     // Browserless reconnect (gpt.txt/qwen.txt)
-    let retries = 0;
-    while (retries < 3) {
-      try {
-        browser = await puppeteer.connect({ browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}`, defaultViewport: null });
-        break;
-      } catch (e) {
-        retries++; if (retries === 3) throw new Error('Browserless failed');
-        await new Promise(r => setTimeout(r, 5000));
+   let retries = 0;
+while (retries < 3) {
+  try {
+    browser = await puppeteer.connect({
+      browserWSEndpoint: `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}`,
+      defaultViewport: null
+    });
+    break;
+  } catch (err) {  // Change 'e' to 'err'
+    retries++;
+    if (retries === 3) throw new Error('Browserless connection failed');
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+
       }
     }
     const page = await browser.newPage();
@@ -371,3 +377,4 @@ async function main() {
 // Run every 10 min (Railway cron) + initial
 main();
 setInterval(main, 10 * 60 * 1000);
+
