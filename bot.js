@@ -44,17 +44,27 @@ class ConfigManager {
   }
 }
 
-// Auto-booking coordinator that sends you direct booking links
+// Auto-booking coordinator with name field
 async function autoBookWithDirectControl(config) {
   try {
     logger.info(`Initiating auto-booking for ${config.province}`, { profile: config.province });
+    
+    // Validate required fields
+    if (!config.name) {
+      await bot.telegram.sendMessage(process.env.CHAT_ID, 
+        `❌ Missing name for ${config.province}. Please update your Google Sheet.`
+      );
+      return false;
+    }
     
     // Send booking initiation message
     await bot.telegram.sendMessage(process.env.CHAT_ID, 
       `🤖 **AUTO-BOOKING INITIATED** 🤖\n\n` +
       `📍 ${config.province} - ${config.office}\n` +
       `📝 ${config.procedure}\n` +
-      `🆔 ${config.nie}\n\n` +
+      `🆔 ${config.nie}\n` +
+      `👤 ${config.name}\n` +
+      `📧 ${config.email}\n\n` +
       `**Preparing automated booking sequence...**`,
       { parse_mode: 'Markdown' }
     );
@@ -62,22 +72,24 @@ async function autoBookWithDirectControl(config) {
     // Send direct control instructions
     await bot.telegram.sendMessage(process.env.CHAT_ID,
       `🎮 **DIRECT BOOKING CONTROL PANEL** 🎮\n\n` +
-      `Click these links in order:\n\n` +
-      `1. 🔗 [Open Booking Site](https://icp.administracionelectronica.gob.es/icpplus/index.html)\n` +
-      `2. 🎯 Select: Trámites > Extranjería\n` +
-      `3. 🏠 Province: ${config.province}\n` +
-      `4. 🏢 Office: ${config.office}\n` +
-      `5. 📋 Procedure: ${config.procedure}\n\n` +
+      `Click this link to start:\n\n` +
+      `🔗 [Open Booking Site](https://icp.administracionelectronica.gob.es/icpplus/index.html)\n\n` +
+      `Then follow these steps:\n` +
+      `1. 🎯 Select: Trámites > Extranjería\n` +
+      `2. 🏠 Province: ${config.province}\n` +
+      `3. 🏢 Office: ${config.office}\n` +
+      `4. 📋 Procedure: ${config.procedure}\n\n` +
       `**I'll send you the next steps in 30 seconds...**`,
       { parse_mode: 'Markdown', disable_web_page_preview: true }
     );
     
-    // Send form filling instructions
+    // Send form filling instructions with name
     setTimeout(async () => {
       await bot.telegram.sendMessage(process.env.CHAT_ID,
         `📝 **FORM FILLING INSTRUCTIONS**\n\n` +
         `Fill these fields exactly:\n\n` +
         `**NIE**: \`${config.nie}\`\n` +
+        `**Name**: \`${config.name}\`\n` +
         `**Phone**: \`+34600000000\`\n` +
         `**Email**: \`${config.email}\`\n\n` +
         `Then click **"Aceptar"**\n\n` +
@@ -141,7 +153,7 @@ async function autoBookWithDirectControl(config) {
   }
 }
 
-// Emergency booking mode - maximum guidance
+// Emergency booking mode
 async function emergencyAutoBooking() {
   try {
     await bot.telegram.sendMessage(process.env.CHAT_ID, `✅ Auto-Booking System ACTIVE`);
@@ -214,5 +226,13 @@ emergencyAutoBooking().then(() => {
 bot.launch();
 
 // Run every 10 minutes for monitoring
-setInterval(emergencyAutoBooking, 10 * 60 * 1000);
+setInterval(async () => {
+  // Only run during active hours (9 AM to 3 PM CET)
+  const now = new Date();
+  const hour = now.getUTCHours() + 1; // CET is UTC+1
+  if (hour >= 8 && hour <= 14) { // 8 AM to 2 PM CET
+    await emergencyAutoBooking();
+  }
+}, 10 * 60 * 1000);
+
 console.log('⏰ Auto-booking monitoring scheduled');
