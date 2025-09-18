@@ -15,7 +15,7 @@ puppeteer.use(RecaptchaPlugin({
 }));
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const limit = pLimit(3);
+const limit = pLimit(3); console.log('Bot starting at ' + new Date().toISOString());
 
 // Enhanced Logger (qwen.txt)
 class Logger {
@@ -378,3 +378,4 @@ async function main() {
 // Run every 10 min (Railway cron) + initial
 main();
 setInterval(main, 10 * 60 * 1000);
+
