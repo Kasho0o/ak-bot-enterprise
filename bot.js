@@ -15,7 +15,7 @@ puppeteer.use(RecaptchaPlugin({
 }));
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const limit = pLimit(3); // Throttling per gpt.txt/qwen.txt
+const limit = pLimit(3);
 
 // Enhanced Logger (qwen.txt)
 class Logger {
@@ -28,7 +28,7 @@ class Logger {
     const logMessage = JSON.stringify(logEntry);
     console[level.toLowerCase() === 'error' ? 'error' : 'log'](logMessage);
     const logFile = level === 'ERROR' ? 'error.log' : 'success.log';
-    try { this.fs.appendFileSync(logFile, logMessage + '\n'); } catch (e) { console.error('Log write failed:', e); }
+    try { this.fs.appendFileSync(logFile, logMessage + '\n'); } catch (error) { console.error('Log write failed:', error); }
     if (level === 'ERROR' && metadata.critical) this.sendTelegramAlert(logEntry);
   }
   info(message, metadata) { this.log('INFO', message, metadata); }
@@ -43,7 +43,7 @@ class Logger {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chat_id: process.env.CHAT_ID, text: alert })
         });
-      } catch (e) { console.error('Alert failed:', e); }
+      } catch (error) { console.error('Alert failed:', error); }
     }
   }
 }
@@ -65,10 +65,10 @@ class ConfigManager {
       this.cache = configs; this.cacheExpiry = now + this.cacheTtl;
       logger.info(`Loaded ${configs.length} configs`);
       return configs;
-    } catch (e) {
-      logger.error('Config fetch failed', { error: e.message });
+    } catch (error) {
+      logger.error('Config fetch failed', { error: error.message });
       if (this.cache) { logger.warn('Using expired cache'); return this.cache; }
-      throw e;
+      throw error;
     }
   }
   async refreshConfigs() { this.cache = null; this.cacheExpiry = 0; return this.getConfigs(); }
@@ -83,9 +83,9 @@ class SMSManager {
         const response = await fetch(url, { ...options, timeout: 30000, headers: { 'Authorization': `Bearer ${this.token}`, 'Accept': 'application/json', ...(options.headers || {}) } });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return await response.json();
-      } catch (e) {
-        logger.warn(`SMS attempt ${attempt} failed: ${e.message}`);
-        if (attempt === this.maxRetries) throw e;
+      } catch (error) {
+        logger.warn(`SMS attempt ${attempt} failed: ${error.message}`);
+        if (attempt === this.maxRetries) throw error;
         await new Promise(r => setTimeout(r, this.retryDelay * attempt));
       }
     }
@@ -111,8 +111,8 @@ class SMSManager {
         if (code) { logger.success(`SMS after ${attempts} attempts`); return code; }
         logger.info(`SMS check ${attempts}: No code`);
         await new Promise(r => setTimeout(r, 10000));
-      } catch (e) {
-        logger.warn(`SMS check ${attempts} failed: ${e.message}`);
+      } catch (error) {
+        logger.warn(`SMS check ${attempts} failed: ${error.message}`);
         if (attempts >= 5) break;
         await new Promise(r => setTimeout(r, 5000));
       }
@@ -120,7 +120,7 @@ class SMSManager {
     throw new Error(`SMS timeout after ${Math.round((Date.now() - start) / 1000)}s`);
   }
   async cancelOrder(id) {
-    try { await this.makeRequest(`${this.baseUrl}/cancel/${id}`); logger.success(`Cancelled ${id}`); } catch (e) { logger.warn(`Cancel failed for ${id}: ${e.message}`); }
+    try { await this.makeRequest(`${this.baseUrl}/cancel/${id}`); logger.success(`Cancelled ${id}`); } catch (error) { logger.warn(`Cancel failed for ${id}: ${error.message}`); }
   }
 }
 
@@ -157,19 +157,19 @@ class HealthMonitor {
       const simData = await fetch(`https://5sim.net/v1/user/balance`, { headers: { Authorization: `Bearer ${process.env.FIVESIM_TOKEN}` } }).then(r => r.json());
       checks.push(`📱 5sim: $${simData.balance || 0}`);
       if (simData.balance < 5) await this.bot.telegram.sendMessage(this.chatId, `⚠️ CRITICAL: 5sim low: $${simData.balance}`);
-    } catch (e) { checks.push('📱 5sim: ❌'); logger.error('5sim check failed', { error: e.message }); }
+    } catch (error) { checks.push('📱 5sim: ❌'); logger.error('5sim check failed', { error: error.message }); }
     try {
       const browserData = await fetch(`https://api.browserless.io/usage?token=${process.env.BROWSERLESS_TOKEN}`).then(r => r.json());
       checks.push(`🖥️ Browserless: ${browserData.hoursRemaining || 0}h`);
       if (browserData.hoursRemaining < 20) await this.bot.telegram.sendMessage(this.chatId, `⚠️ WARNING: Browserless low: ${browserData.hoursRemaining}h`);
-    } catch (e) { checks.push('🖥️ Browserless: ❌'); logger.error('Browserless check failed', { error: e.message }); }
+    } catch (error) { checks.push('🖥️ Browserless: ❌'); logger.error('Browserless check failed', { error: error.message }); }
     try {
       const captchaData = await fetch('https://api.capsolver.com/getBalance', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clientKey: process.env.CAPSOLVER_KEY })
       }).then(r => r.json());
       checks.push(`🤖 Capsolver: $${captchaData.balance || 0}`);
-    } catch (e) { checks.push('🤖 Capsolver: ❌'); logger.error('Capsolver check failed', { error: e.message }); }
+    } catch (error) { checks.push('🤖 Capsolver: ❌'); logger.error('Capsolver check failed', { error: error.message }); }
     return checks;
   }
   async sendHealthReport() {
@@ -189,7 +189,7 @@ class HealthMonitor {
         `⏱️ Avg Time: ${Math.round(this.metrics.avgRuntime)}s`
       ].join('\n');
       await this.bot.telegram.sendMessage(this.chatId, report, { parse_mode: 'Markdown' });
-    } catch (e) { logger.error('Report failed', { error: e.message }); }
+    } catch (error) { logger.error('Report failed', { error: error.message }); }
   }
   recordRun(success, runtime) {
     this.metrics.totalRuns++;
@@ -245,7 +245,7 @@ async function findAvailableSlots(page, maxRetries = 3) {
 
 // Main bookAppointment (wrapped in RetryManager)
 async function bookAppointment(config) {
-  let success = false; // Track success for health metrics
+  let success = false;
   const startTime = Date.now();
   const smsManager = new SMSManager();
   let browser;
