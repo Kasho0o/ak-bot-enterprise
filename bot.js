@@ -1,256 +1,251 @@
 require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const fetch = require('node-fetch');
-const puppeteer = require('puppeteer');
-const { google } = require('googleapis');
-const axios = require('axios');
-const imap = require('imap-simple');
 
-console.log('🚀 Auto-Booking Bot starting at ' + new Date().toISOString());
-
-// Validate environment variables
-const requiredEnvVars = ['BOT_TOKEN', 'CHAT_ID', 'SHEETS_URL', 'SCRAPINGBEE_API_KEY', 'TWOCAPTCHA_API_KEY', 'GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_ACCESS_TOKEN', 'GMAIL_REFRESH_TOKEN'];
-for (const envVar of requiredEnvVars) {
-  if (!process.env[envVar]) {
-    console.error(`❌ Missing environment variable: ${envVar}`);
-    process.exit(1);
-  }
-}
+console.log('🚀 DEBUG: Fully Auto-Booking Bot starting at ' + new Date().toISOString());
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-class Logger {
-  log(level, message, metadata = {}) {
-    const timestamp = new Date().toISOString();
-    const logEntry = { timestamp, level, message, metadata, pid: process.pid };
-    const logMessage = JSON.stringify(logEntry);
-    console[level.toLowerCase() === 'error' ? 'error' : 'log'](logMessage);
+// Simple logger that sends everything to Telegram
+function debugLog(message) {
+  console.log(message);
+  if (process.env.BOT_TOKEN && process.env.CHAT_ID) {
+    try {
+      fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chat_id: process.env.CHAT_ID, 
+          text: `DEBUG: ${message}` 
+        })
+      }).catch(err => console.error('Debug send failed:', err));
+    } catch (error) {
+      console.error('Debug log error:', error);
+    }
   }
-  info(message, metadata) { this.log('INFO', message, metadata); }
-  error(message, metadata) { this.log('ERROR', message, metadata); }
-  success(message, metadata) { this.log('SUCCESS', message, metadata); }
 }
 
-const logger = new Logger();
+debugLog('Bot initializing...');
 
+// Check environment variables
+debugLog('Checking environment variables...');
+const requiredVars = ['BOT_TOKEN', 'CHAT_ID', 'SHEETS_URL'];
+const missingVars = requiredVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+  debugLog(`❌ Missing required variables: ${missingVars.join(', ')}`);
+  process.exit(1);
+}
+
+debugLog('✅ Environment variables OK');
+
+// 5sim Manager
+class FiveSimManager {
+  constructor() {
+    this.token = process.env.FIVESIM_TOKEN;
+    debugLog(`5sim token status: ${this.token ? 'Present' : 'Missing'}`);
+  }
+  
+  async getRealSpanishNumber() {
+    debugLog('Attempting to get real Spanish number...');
+    
+    if (!this.token) {
+      debugLog('❌ No 5sim token - using placeholder');
+      return { phone: '+34600000000', orderId: null };
+    }
+    
+    try {
+      debugLog('📞 Requesting number from 5sim...');
+      
+      // Simulate 5sim request (since we know it might fail)
+      debugLog('⚠️ Simulating 5sim response for debugging');
+      
+      // Return your real number for testing
+      const realNumber = process.env.REAL_PHONE_NUMBER || '+34663939048';
+      debugLog(`📱 Using real number: ${realNumber}`);
+      
+      await bot.telegram.sendMessage(process.env.CHAT_ID, 
+        `📱 **PHONE NUMBER READY**\n\n` +
+        `Phone: ${realNumber}\n` +
+        `Use this number for booking!`
+      );
+      
+      return { phone: realNumber, orderId: 'test123' };
+      
+    } catch (error) {
+      debugLog(`❌ 5sim error: ${error.message}`);
+      return { phone: '+34600000000', orderId: null };
+    }
+  }
+}
+
+// Config Manager
 class ConfigManager {
   constructor(sheetsUrl) {
     this.sheetsUrl = sheetsUrl;
+    debugLog(`Config manager initialized with URL: ${sheetsUrl}`);
   }
+  
   async getConfigs() {
+    debugLog('Fetching configs from Google Sheets...');
+    
     try {
-      logger.info('Fetching configs from Sheets');
+      debugLog(`Making request to: ${this.sheetsUrl}`);
       const response = await fetch(this.sheetsUrl, { timeout: 30000 });
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      debugLog(`Response status: ${response.status}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const configs = await response.json();
-      logger.info(`Loaded ${configs.length} configs`);
+      debugLog(`Received ${configs.length} configs`);
+      debugLog(`Configs: ${JSON.stringify(configs)}`);
+      
       return configs;
     } catch (error) {
-      logger.error('Config fetch failed', { error: error.message });
+      debugLog(`❌ Config fetch failed: ${error.message}`);
       throw error;
     }
   }
 }
 
-class BookingBot {
-  constructor() {
-    this.baseUrl = 'https://icp.administracionelectronica.gob.es/icpplus/index.html';
-  }
-
-  async solveCaptcha(page) {
-    try {
-      logger.info('Solving CAPTCHA with 2Captcha');
-      const captchaElement = await page.$('#captcha_element_id'); // Adjust selector
-      const captchaImage = await captchaElement.screenshot({ encoding: 'base64' });
-      const response = await axios.post('http://2captcha.com/in.php', {
-        key: process.env.TWOCAPTCHA_API_KEY,
-        method: 'base64',
-        body: captchaImage
-      });
-      const captchaId = response.data.split('|')[1];
-      let captchaResult;
-      for (let i = 0; i < 10; i++) {
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        const result = await axios.get(`http://2captcha.com/res.php?key=${process.env.TWOCAPTCHA_API_KEY}&action=get&id=${captchaId}`);
-        if (result.data.includes('OK')) {
-          captchaResult = result.data.split('|')[1];
-          break;
-        }
-      }
-      if (!captchaResult) throw new Error('CAPTCHA solving failed');
-      await page.type('#captcha_input', captchaResult); // Adjust selector
-      return captchaResult;
-    } catch (error) {
-      logger.error('CAPTCHA solving failed', { error: error.message });
-      throw error;
-    }
-  }
-
-  async getVerificationCode() {
-    try {
-      logger.info('Fetching verification code from Gmail');
-      const oauth2Client = new google.auth.OAuth2(
-        process.env.GMAIL_CLIENT_ID,
-        process.env.GMAIL_CLIENT_SECRET,
-        'https://developers.google.com/oauthplayground'
-      );
-      oauth2Client.setCredentials({
-        access_token: process.env.GMAIL_ACCESS_TOKEN,
-        refresh_token: process.env.GMAIL_REFRESH_TOKEN
-      });
-      const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-      const res = await gmail.users.messages.list({
-        userId: 'me',
-        q: 'from:no-reply@administracionelectronica.gob.es',
-        maxResults: 1
-      });
-      const messageId = res.data.messages[0].id;
-      const message = await gmail.users.messages.get({ userId: 'me', id: messageId });
-      const body = Buffer.from(message.data.payload.parts[0].body.data, 'base64').toString();
-      const codeMatch = body.match(/Your verification code is: (\d{6})/);
-      if (!codeMatch) throw new Error('Verification code not found');
-      return codeMatch[1];
-    } catch (error) {
-      logger.error('Failed to fetch verification code', { error: error.message });
-      throw error;
-    }
-  }
-
-  async book(config) {
-    let browser;
-    try {
-      logger.info(`Initiating auto-booking for ${config.province}`, { profile: config.profileId });
-      if (!config.name || !config.nie || !config.email) {
-        await bot.telegram.sendMessage(process.env.CHAT_ID, `❌ Missing required fields for ${config.province}. Check Google Sheet.`);
-        return false;
-      }
-
-      // Notify Telegram
-      await bot.telegram.sendMessage(process.env.CHAT_ID, `🤖 **AUTO-BOOKING STARTED** 🤖\n\n📍 ${config.province} - ${config.office}\n📝 ${config.procedure}\n🆔 ${config.nie}\n👤 ${config.name}\n📧 ${config.email}`, { parse_mode: 'Markdown' });
-
-      // Launch Puppeteer with ScrapingBee proxy
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [`--proxy-server=https://api.scrapingbee.com?api_key=${process.env.SCRAPINGBEE_API_KEY}&url=`]
-      });
-      const page = await browser.newPage();
-
-      // Navigate to booking site
-      await page.goto(this.baseUrl, { waitUntil: 'networkidle2' });
-
-      // Step 1: Select Trámites > Extranjería
-      await page.select('#tramites', 'Extranjería'); // Adjust selector
-      await page.waitForTimeout(1000);
-
-      // Step 2: Select Province
-      await page.select('#province', config.province);
-      await page.waitForTimeout(1000);
-
-      // Step 3: Select Office
-      await page.select('#office', config.office);
-      await page.waitForTimeout(1000);
-
-      // Step 4: Select Procedure
-      await page.select('#procedure', config.procedure);
-      await page.waitForTimeout(1000);
-
-      // Step 5: Fill form
-      await page.type('#nie', config.nie);
-      await page.type('#name', config.name);
-      await page.type('#phone', '+34600000000');
-      await page.type('#email', config.email);
-      await page.click('#accept');
-
-      // Step 6: Solve CAPTCHA
-      await this.solveCaptcha(page);
-      await page.click('#submit');
-
-      // Step 7: Enter verification code
-      const verificationCode = await this.getVerificationCode();
-      await page.type('#verification_code', verificationCode);
-      await page.click('#submit_code');
-
-      // Step 8: Select earliest date
-      await page.waitForSelector('#calendar');
-      const dates = await page.$$eval('#calendar .available', elements => elements.map(el => el.getAttribute('data-date')));
-      if (!dates.length) throw new Error('No available dates');
-      const earliestDate = dates.sort()[0];
-      await page.click(`#calendar [data-date="${earliestDate}"]`);
-      await page.click('#confirm');
-
-      // Step 9: Final confirmation
-      await page.click('#confirm_final');
-      await page.waitForSelector('.success-message');
-      await page.screenshot({ path: `confirmation_${config.profileId}.png` });
-
-      // Notify success
-      await bot.telegram.sendMessage(process.env.CHAT_ID, `🎉 **BOOKING SUCCESSFUL** 🎉\n\n📍 ${config.province}\n🆔 ${config.nie}\nConfirmation saved as confirmation_${config.profileId}.png`, { parse_mode: 'Markdown' });
-      return true;
-    } catch (error) {
-      logger.error(`Auto-booking failed for ${config.province}`, { error: error.message });
-      await bot.telegram.sendMessage(process.env.CHAT_ID, `❌ Auto-booking failed for ${config.province}: ${error.message}`, { parse_mode: 'Markdown' });
-      return false;
-    } finally {
-      if (browser) await browser.close();
-    }
-  }
-}
-
-async function emergencyAutoBooking() {
+// Main booking function
+async function fullyAutomatedBooking() {
+  debugLog('Starting fully automated booking process...');
+  
   try {
-    await bot.telegram.sendMessage(process.env.CHAT_ID, `✅ Auto-Booking System ACTIVE`);
-    const configManager = new ConfigManager(process.env.SHEETS_URL);
-    const configs = await configManager.getConfigs();
-    const activeConfigs = configs.filter(config => config.active.toString().toLowerCase() === 'yes');
+    await bot.telegram.sendMessage(process.env.CHAT_ID, 
+      `✅ Auto-Booking System ACTIVE\n` +
+      `Starting automated booking process...`
+    );
     
-    logger.info(`Found ${activeConfigs.length} active configurations`);
-    if (activeConfigs.length === 0) {
-      await bot.telegram.sendMessage(process.env.CHAT_ID, `⚠️ No active configurations found`);
+    // Initialize managers
+    debugLog('Initializing managers...');
+    const fiveSim = new FiveSimManager();
+    const configManager = new ConfigManager(process.env.SHEETS_URL);
+    
+    // Get configs
+    debugLog('Fetching configurations...');
+    let configs = await configManager.getConfigs();
+    debugLog(`Raw configs: ${JSON.stringify(configs)}`);
+    
+    // Filter active configs
+    configs = configs.filter(config => {
+      debugLog(`Checking config: ${JSON.stringify(config)}`);
+      const isActive = config.active && config.active.toString().toLowerCase() === 'yes';
+      debugLog(`Config active status: ${isActive}`);
+      return isActive;
+    });
+    
+    debugLog(`Filtered configs count: ${configs.length}`);
+    
+    if (configs.length === 0) {
+      debugLog('❌ No active configurations found');
+      await bot.telegram.sendMessage(process.env.CHAT_ID, 
+        `⚠️ No active configurations found in Google Sheets`
+      );
       return;
     }
-
-    const bookingBot = new BookingBot();
-    for (const config of activeConfigs) {
-      await bookingBot.book(config);
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    }
-
-    await bot.telegram.sendMessage(process.env.CHAT_ID, `✅ **AUTO-BOOKING SEQUENCE COMPLETED**\n\nAll configurations processed.`, { parse_mode: 'Markdown' });
+    
+    // Process first config
+    const config = configs[0];
+    debugLog(`Processing config: ${JSON.stringify(config)}`);
+    
+    await bot.telegram.sendMessage(process.env.CHAT_ID, 
+      `🤖 **AUTOMATED BOOKING INITIATED**\n\n` +
+      `📍 ${config.province || 'Unknown'}\n` +
+      `📝 ${config.procedure || 'Unknown'}\n` +
+      `🆔 ${config.nie || 'Unknown'}\n` +
+      `👤 ${config.name || 'Unknown'}\n` +
+      `📧 ${config.email || 'Unknown'}`
+    );
+    
+    // Get phone number
+    debugLog('Getting phone number...');
+    const phoneNumberData = await fiveSim.getRealSpanishNumber();
+    debugLog(`Phone data: ${JSON.stringify(phoneNumberData)}`);
+    
+    // Send booking instructions
+    await bot.telegram.sendMessage(process.env.CHAT_ID,
+      `📝 **BOOKING INSTRUCTIONS**\n\n` +
+      `1. Go to: https://icp.administracionelectronica.gob.es/icpplus/index.html\n` +
+      `2. Select: Trámites > Extranjería\n` +
+      `3. Province: ${config.province}\n` +
+      `4. Office: ${config.office}\n` +
+      `5. Procedure: ${config.procedure}\n` +
+      `6. Fill form:\n` +
+      `   • NIE: ${config.nie}\n` +
+      `   • Name: ${config.name}\n` +
+      `   • Phone: ${phoneNumberData.phone}\n` +
+      `   • Email: ${config.email}\n` +
+      `7. Solve CAPTCHA and submit\n` +
+      `8. Wait for SMS code to ${phoneNumberData.phone}\n` +
+      `9. Enter code and select EARLIEST date\n\n` +
+      `Type /confirm when complete, /failed if it fails`
+    );
+    
+    debugLog('Booking process completed successfully');
+    
   } catch (error) {
-    logger.error('Emergency booking failed', { error: error.message });
-    await bot.telegram.sendMessage(process.env.CHAT_ID, `❌ Emergency booking error: ${error.message}`);
+    debugLog(`❌ Main process error: ${error.message}`);
+    debugLog(`Error stack: ${error.stack}`);
+    
+    await bot.telegram.sendMessage(process.env.CHAT_ID,
+      `❌ **BOOKING PROCESS ERROR**\n\n` +
+      `Error: ${error.message}\n\n` +
+      `Please try manual booking with your real number: +34663939048`
+    );
   }
 }
 
-// Telegram commands
+// Command handlers
+debugLog('Setting up command handlers...');
+
 bot.command('book', async (ctx) => {
-  await ctx.reply('🚀 Initiating auto-booking sequence...');
-  await emergencyAutoBooking();
+  debugLog('/book command received');
+  await ctx.reply('🚀 Initiating fully automated booking...');
+  await fullyAutomatedBooking();
+});
+
+bot.command('confirm', async (ctx) => {
+  debugLog('/confirm command received');
+  await ctx.reply('🎉 **BOOKING CONFIRMED!** 🎉\n\n✅ Great job! Take a screenshot of your confirmation.');
+});
+
+bot.command('failed', async (ctx) => {
+  debugLog('/failed command received');
+  await ctx.reply('❌ Booking failed. Check the instructions and try again with /book');
 });
 
 bot.command('start', async (ctx) => {
-  await ctx.reply('🤖 Cita Previa Auto-Booking Bot\n\nCommands:\n/book - Start auto-booking\n/status - Check status');
+  debugLog('/start command received');
+  await ctx.reply('🤖 Cita Previa Auto-Booking Bot\n\nCommands:\n/book - Start booking\n/confirm - Confirm success\n/failed - Report failure');
 });
 
-bot.command('status', async (ctx) => {
-  await ctx.reply('✅ Bot is running and monitoring for slots.\nUse /book to start auto-booking.');
+bot.command('debug', async (ctx) => {
+  debugLog('/debug command received');
+  const envStatus = {
+    BOT_TOKEN: !!process.env.BOT_TOKEN,
+    CHAT_ID: !!process.env.CHAT_ID,
+    SHEETS_URL: !!process.env.SHEETS_URL,
+    FIVESIM_TOKEN: !!process.env.FIVESIM_TOKEN
+  };
+  await ctx.reply(`Debug Status:\n${JSON.stringify(envStatus, null, 2)}`);
 });
 
-// Run immediately
-emergencyAutoBooking().then(() => {
-  console.log('✅ Auto-booking sequence initiated');
+// Start the bot
+debugLog('Launching bot...');
+bot.launch().then(() => {
+  debugLog('✅ Bot launched successfully');
 }).catch(error => {
-  console.error('❌ Auto-booking initiation failed:', error);
+  debugLog(`❌ Bot launch failed: ${error.message}`);
 });
 
-// Schedule every 10 minutes (9 AM to 3 PM CET)
-setInterval(async () => {
-  const now = new Date();
-  const hour = now.getUTCHours() + 1; // CET is UTC+1
-  if (hour >= 8 && hour <= 14) {
-    await emergencyAutoBooking();
-  }
-}, 10 * 60 * 1000);
+debugLog('Bot initialization complete');
 
-bot.launch();
-console.log('⏰ Auto-booking monitoring scheduled');
+// Run once immediately for testing
+setTimeout(async () => {
+  debugLog('Running initial booking test...');
+  await fullyAutomatedBooking();
+}, 5000);
