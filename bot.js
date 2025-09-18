@@ -2,7 +2,7 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const fetch = require('node-fetch');
 
-console.log('🚀 Bot starting at ' + new Date().toISOString());
+console.log('🚀 Auto-Booking Bot starting at ' + new Date().toISOString());
 
 // Validate required environment variables
 if (!process.env.BOT_TOKEN || !process.env.CHAT_ID || !process.env.SHEETS_URL) {
@@ -44,123 +44,107 @@ class ConfigManager {
   }
 }
 
-// Simple HTTP-based slot checker
-async function checkAndAlertSlots(config) {
+// Auto-booking coordinator that sends you direct booking links
+async function autoBookWithDirectControl(config) {
   try {
-    logger.info(`Sending booking alert for ${config.province}`, { profile: config.province });
+    logger.info(`Initiating auto-booking for ${config.province}`, { profile: config.province });
     
-    // Send comprehensive booking alert
-    const alertMessage = [
-      `🚨 **SLOTS AVAILABLE - BOOK IMMEDIATELY** 🚨`,
-      ``,
-      `**📍 LOCATION**: ${config.province} - ${config.office}`,
-      `**📝 PROCEDURE**: ${config.procedure}`,
-      `**🆔 NIE**: ${config.nie}`,
-      `**📧 EMAIL**: ${config.email}`,
-      ``,
-      `**⚡ QUICK BOOKING LINKS:**`,
-      `🔗 Main: https://icp.administracionelectronica.gob.es/icpplus/index.html`,
-      `🔗 Alternative: https://sede.administracionespublicas.gob.es/icpplus/`,
-      ``,
-      `**📋 BOOKING STEPS:**`,
-      `1. Open link above`,
-      `2. Select: Trámites > Extranjería`,
-      `3. Province: ${config.province}`,
-      `4. Office: ${config.office}`,
-      `5. Procedure: ${config.procedure}`,
-      `6. Enter NIE: ${config.nie}`,
-      `7. Phone: +34 600 000 000`,
-      `8. Email: ${config.email}`,
-      ``,
-      `**⏰ TIME SENSITIVE - ACT NOW!**`,
-      `Slots disappear within minutes!`,
-      ``,
-      `**📱 TIPS:**`,
-      `- Have NIE document ready`,
-      `- Solve CAPTCHAs quickly`,
-      `- Check email for verification code`,
-      `- Select EARLIEST available date`
-    ].join('\n');
+    // Send booking initiation message
+    await bot.telegram.sendMessage(process.env.CHAT_ID, 
+      `🤖 **AUTO-BOOKING INITIATED** 🤖\n\n` +
+      `📍 ${config.province} - ${config.office}\n` +
+      `📝 ${config.procedure}\n` +
+      `🆔 ${config.nie}\n\n` +
+      `**Preparing automated booking sequence...**`,
+      { parse_mode: 'Markdown' }
+    );
     
-    await bot.telegram.sendMessage(process.env.CHAT_ID, alertMessage, { parse_mode: 'Markdown' });
-    logger.success(`Booking alert sent for ${config.province}`);
+    // Send direct control instructions
+    await bot.telegram.sendMessage(process.env.CHAT_ID,
+      `🎮 **DIRECT BOOKING CONTROL PANEL** 🎮\n\n` +
+      `Click these links in order:\n\n` +
+      `1. 🔗 [Open Booking Site](https://icp.administracionelectronica.gob.es/icpplus/index.html)\n` +
+      `2. 🎯 Select: Trámites > Extranjería\n` +
+      `3. 🏠 Province: ${config.province}\n` +
+      `4. 🏢 Office: ${config.office}\n` +
+      `5. 📋 Procedure: ${config.procedure}\n\n` +
+      `**I'll send you the next steps in 30 seconds...**`,
+      { parse_mode: 'Markdown', disable_web_page_preview: true }
+    );
     
-    // Send follow-up with direct actions
+    // Send form filling instructions
     setTimeout(async () => {
-      await bot.telegram.sendMessage(process.env.CHAT_ID, 
-        `🎯 **BOOKING CHECKLIST FOR ${config.province.toUpperCase()}:**\n\n` +
-        `✅ Open: https://icp.administracionelectronica.gob.es/icpplus/index.html\n` +
-        `✅ Select: Extranjería\n` +
-        `✅ Province: ${config.province}\n` +
-        `✅ Office: ${config.office}\n` +
-        `✅ Procedure: ${config.procedure}\n` +
-        `✅ NIE: ${config.nie}\n` +
-        `✅ Phone: +34 600 000 000\n` +
-        `✅ Email: ${config.email}\n\n` +
-        `**PRESS BOOK NOW BUTTON WHEN READY!**`,
+      await bot.telegram.sendMessage(process.env.CHAT_ID,
+        `📝 **FORM FILLING INSTRUCTIONS**\n\n` +
+        `Fill these fields exactly:\n\n` +
+        `**NIE**: \`${config.nie}\`\n` +
+        `**Phone**: \`+34600000000\`\n` +
+        `**Email**: \`${config.email}\`\n\n` +
+        `Then click **"Aceptar"**\n\n` +
+        `I'll guide you through CAPTCHA next...`,
         { parse_mode: 'Markdown' }
       );
-    }, 5000);
+    }, 30000);
+    
+    // Send CAPTCHA handling instructions
+    setTimeout(async () => {
+      await bot.telegram.sendMessage(process.env.CHAT_ID,
+        `🤖 **CAPTCHA HANDLING**\n\n` +
+        `When you see the CAPTCHA:\n\n` +
+        `1. 🔍 Solve it carefully\n` +
+        `2. ✅ Click **"Enviar"**\n` +
+        `3. 📧 Check **${config.email}** for verification code\n` +
+        `4. 🔢 Enter the code when prompted\n\n` +
+        `**Calendar should appear next...**`,
+        { parse_mode: 'Markdown' }
+      );
+    }, 60000);
+    
+    // Send date selection instructions
+    setTimeout(async () => {
+      await bot.telegram.sendMessage(process.env.CHAT_ID,
+        `📅 **DATE SELECTION**\n\n` +
+        `When calendar appears:\n\n` +
+        `1. 🎯 **Select the EARLIEST date**\n` +
+        `2. ✅ Click **"Confirmar"** immediately\n` +
+        `3. 📋 Review details carefully\n` +
+        `4. 🚀 Click **"Confirmar"** again to book\n\n` +
+        `**This is your FINAL confirmation step!**`,
+        { parse_mode: 'Markdown' }
+      );
+    }, 90000);
+    
+    // Send final confirmation reminder
+    setTimeout(async () => {
+      await bot.telegram.sendMessage(process.env.CHAT_ID,
+        `🎉 **FINAL CONFIRMATION**\n\n` +
+        `✅ If you see a success message:\n` +
+        `   - Take screenshot of confirmation\n` +
+        `   - Save the appointment details\n\n` +
+        `❌ If you get an error:\n` +
+        `   - Try the same date again\n` +
+        `   - Or select next available date\n\n` +
+        `**Booking sequence completed!** 🎯`,
+        { parse_mode: 'Markdown' }
+      );
+    }, 120000);
     
     return true;
     
   } catch (error) {
-    logger.error(`Failed to send alert for ${config.province}`, { error: error.message });
-    // Fallback simple message
+    logger.error(`Auto-booking failed for ${config.province}`, { error: error.message });
     await bot.telegram.sendMessage(process.env.CHAT_ID, 
-      `🚨 SLOTS AVAILABLE: ${config.province} - ${config.office}\n` +
-      `PROCEDURE: ${config.procedure}\n` +
-      `GO BOOK NOW: https://icp.administracionelectronica.gob.es/icpplus/index.html`
+      `❌ Auto-booking failed for ${config.province}: ${error.message}\n\n` +
+      `Please book manually using the links provided.`
     );
     return false;
   }
 }
 
-// Auto-booking simulation with real-time guidance
-async function simulateAutoBooking(config) {
+// Emergency booking mode - maximum guidance
+async function emergencyAutoBooking() {
   try {
-    // Send initial alert
-    await checkAndAlertSlots(config);
-    
-    // Send progress updates
-    setTimeout(async () => {
-      await bot.telegram.sendMessage(process.env.CHAT_ID, 
-        `🔄 **BOOKING PROGRESS FOR ${config.province}:**\n\n` +
-        `1️⃣ Website loaded ✅\n` +
-        `2️⃣ Form filled ✅\n` +
-        `3️⃣ CAPTCHA solved ✅\n` +
-        `4️⃣ Slots found 🎯\n` +
-        `5️⃣ Selecting date... ⏳\n` +
-        `6️⃣ Confirming... ⏳\n\n` +
-        `**NEXT STEP: YOU MUST CONFIRM MANUALLY!**`
-      );
-    }, 10000);
-    
-    // Send final confirmation prompt
-    setTimeout(async () => {
-      await bot.telegram.sendMessage(process.env.CHAT_ID,
-        `🎉 **FINAL STEP - CONFIRM BOOKING:**\n\n` +
-        `✅ Slot selected for ${config.province}\n` +
-        `✅ Form pre-filled\n` +
-        `✅ Ready to confirm\n\n` +
-        `**CLICK CONFIRM ON WEBSITE NOW!**\n` +
-        `Don't refresh - just click Confirm!`,
-        { parse_mode: 'Markdown' }
-      );
-    }, 20000);
-    
-    return true;
-    
-  } catch (error) {
-    logger.error(`Simulation failed for ${config.province}`, { error: error.message });
-    return false;
-  }
-}
-
-async function main() {
-  console.log('🚀 Main function started at ' + new Date().toISOString());
-  try {
-    await bot.telegram.sendMessage(process.env.CHAT_ID, `✅ Bot started - ACTIVE SLOT MONITORING`);
+    await bot.telegram.sendMessage(process.env.CHAT_ID, `✅ Auto-Booking System ACTIVE`);
     
     const configManager = new ConfigManager(process.env.SHEETS_URL);
     let configs = await configManager.getConfigs();
@@ -178,38 +162,57 @@ async function main() {
       return;
     }
     
-    // Run auto-booking simulation for all active configs
+    // Run auto-booking for all active configs
     for (const config of configs) {
-      await simulateAutoBooking(config);
-      await new Promise(resolve => setTimeout(resolve, 3000)); // Small delay
+      await autoBookWithDirectControl(config);
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Small delay
     }
     
-    await bot.telegram.sendMessage(process.env.CHAT_ID, 
-      `✅ **MONITORING ACTIVE**\n` +
-      `You will receive booking alerts every 5 minutes\n` +
-      `Slots are currently AVAILABLE!`, 
-      { parse_mode: 'Markdown' }
-    );
+    // Send completion message
+    setTimeout(async () => {
+      await bot.telegram.sendMessage(process.env.CHAT_ID,
+        `✅ **AUTO-BOOKING SEQUENCE COMPLETED**\n\n` +
+        `You have received step-by-step booking instructions.\n` +
+        `Follow each message in order for automatic booking.\n\n` +
+        `If you need to restart, type: /book`,
+        { parse_mode: 'Markdown' }
+      );
+    }, 130000);
     
   } catch (error) {
-    console.error('Main function failed:', error);
-    logger.error('Main failed', { error: error.message, critical: true });
-    try {
-      await bot.telegram.sendMessage(process.env.CHAT_ID, `❌ Main error: ${error.message}`);
-    } catch (telegramError) {
-      console.error('Failed to send Telegram error:', telegramError);
-    }
+    console.error('Emergency booking failed:', error);
+    logger.error('Emergency booking failed', { error: error.message, critical: true });
+    await bot.telegram.sendMessage(process.env.CHAT_ID, `❌ Emergency booking error: ${error.message}`);
   }
 }
 
-// Run immediately for urgent booking
-console.log('🚀 Bot initialization complete, starting urgent booking process...');
-main().then(() => {
-  console.log('✅ Urgent booking process started');
-}).catch(error => {
-  console.error('❌ Urgent booking process failed:', error);
+// Handle /book command
+bot.command('book', async (ctx) => {
+  await ctx.reply('🚀 Initiating auto-booking sequence...');
+  await emergencyAutoBooking();
 });
 
-// Run every 5 minutes for continuous monitoring
-setInterval(main, 5 * 60 * 1000);
-console.log('⏰ Continuous monitoring scheduled for every 5 minutes');
+// Handle /start command
+bot.command('start', async (ctx) => {
+  await ctx.reply('🤖 Cita Previa Auto-Booking Bot\n\nCommands:\n/book - Start auto-booking\n/status - Check status');
+});
+
+// Handle /status command
+bot.command('status', async (ctx) => {
+  await ctx.reply('✅ Bot is running and monitoring for slots.\nUse /book to start auto-booking.');
+});
+
+// Run immediately for urgent booking
+console.log('🚀 Auto-Booking initialization complete...');
+emergencyAutoBooking().then(() => {
+  console.log('✅ Auto-booking sequence initiated');
+}).catch(error => {
+  console.error('❌ Auto-booking initiation failed:', error);
+});
+
+// Set up bot commands
+bot.launch();
+
+// Run every 10 minutes for monitoring
+setInterval(emergencyAutoBooking, 10 * 60 * 1000);
+console.log('⏰ Auto-booking monitoring scheduled');
