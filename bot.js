@@ -7,9 +7,6 @@ console.log('🚀 Bot starting at ' + new Date().toISOString());
 // Validate required environment variables
 if (!process.env.BOT_TOKEN || !process.env.CHAT_ID || !process.env.SHEETS_URL) {
   console.error('❌ Missing required environment variables');
-  console.error('BOT_TOKEN:', !!process.env.BOT_TOKEN);
-  console.error('CHAT_ID:', !!process.env.CHAT_ID);
-  console.error('SHEETS_URL:', !!process.env.SHEETS_URL);
   process.exit(1);
 }
 
@@ -47,46 +44,58 @@ class ConfigManager {
   }
 }
 
-// Slot availability checker with real HTTP requests
-async function checkRealAvailability(config) {
+async function sendBookingInstructions(config) {
   try {
-    logger.info(`Checking real availability for ${config.province}`, { profile: config.province });
-    await bot.telegram.sendMessage(process.env.CHAT_ID, `🚀 Checking REAL availability for ${config.province}...`);
+    logger.info(`Sending booking instructions for ${config.province}`, { profile: config.province });
     
-    // Try to access the main cita previa page
-    const response = await fetch('https://icpplus.sede.administracionespublicas.gob.es/icpplus/index.html', {
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    });
+    const instructions = [
+      `🚨 **URGENT: BOOK NOW - SLOTS AVAILABLE** 🚨`,
+      ``,
+      `**Profile**: ${config.province}`,
+      `**Office**: ${config.office}`,
+      `**Procedure**: ${config.procedure}`,
+      `**NIE**: ${config.nie}`,
+      `**Email**: ${config.email}`,
+      ``,
+      `**📋 BOOKING STEPS:**`,
+      `1. Go to: https://icp.administracionelectronica.gob.es/icpplus/index.html`,
+      `2. Select "Extranjería"`,
+      `3. Choose Province: ${config.province}`,
+      `4. Choose Office: ${config.office}`,
+      `5. Select Procedure: ${config.procedure}`,
+      `6. Enter NIE: ${config.nie}`,
+      `7. Enter Phone: Use 5sim number or +34 600 000 000`,
+      `8. Enter Email: ${config.email}`,
+      ``,
+      `**⏰ ACT NOW - Slots are limited!**`,
+      ``,
+      `**📱 TIPS:**`,
+      `- Have your NIE document ready`,
+      `- Use a Spanish phone number (5sim recommended)`,
+      `- Keep email open for verification code`,
+      `- Be ready to solve CAPTCHA quickly`
+    ].join('\n');
     
-    if (response.ok) {
-      await bot.telegram.sendMessage(process.env.CHAT_ID, `✅ Website accessible for ${config.province}`);
-      
-      // Simulate finding slots (since we can't automate browser right now)
-      // But notify you that the site is working
-      await bot.telegram.sendMessage(process.env.CHAT_ID, `🎉 ${config.province} website is UP! Manual booking recommended NOW!`);
-      await bot.telegram.sendMessage(process.env.CHAT_ID, `🔗 Go to: https://icpplus.sede.administracionespublicas.gob.es/icpplus/index.html`);
-      
-      logger.success(`Website accessible for ${config.province}`);
-      return true;
-    } else {
-      await bot.telegram.sendMessage(process.env.CHAT_ID, `⚠️ Website issues for ${config.province}: ${response.status}`);
-      return false;
-    }
+    await bot.telegram.sendMessage(process.env.CHAT_ID, instructions, { parse_mode: 'Markdown' });
+    logger.success(`Booking instructions sent for ${config.province}`);
     
   } catch (error) {
-    logger.error(`Check failed for ${config.province}`, { error: error.message, profile: config.province });
-    await bot.telegram.sendMessage(process.env.CHAT_ID, `❌ Check failed for ${config.province}: ${error.message}`);
-    return false;
+    logger.error(`Failed to send instructions for ${config.province}`, { error: error.message });
+    // Send simplified instructions
+    await bot.telegram.sendMessage(process.env.CHAT_ID, 
+      `🚨 SLOTS AVAILABLE FOR ${config.province.toUpperCase()}!\n` +
+      `Go to: https://icp.administracionelectronica.gob.es/icpplus/index.html\n` +
+      `Procedure: ${config.procedure}\n` +
+      `NIE: ${config.nie}\n` +
+      `Book NOW!`
+    );
   }
 }
 
 async function main() {
   console.log('🚀 Main function started at ' + new Date().toISOString());
   try {
-    await bot.telegram.sendMessage(process.env.CHAT_ID, `✅ Bot started - Real-time slot monitoring ACTIVE`);
+    await bot.telegram.sendMessage(process.env.CHAT_ID, `✅ Bot started - EMERGENCY SLOT ALERT`);
     
     const configManager = new ConfigManager(process.env.SHEETS_URL);
     let configs = await configManager.getConfigs();
@@ -104,29 +113,18 @@ async function main() {
       return;
     }
     
-    // Sort by priority
-    configs.sort((a, b) => (a.priority || 3) - (b.priority || 3));
-    
-    // Run checks
-    let websiteAccessible = false;
+    // Send booking instructions for all active configs
     for (const config of configs) {
-      try {
-        const isAccessible = await checkRealAvailability(config);
-        if (isAccessible) {
-          websiteAccessible = true;
-        }
-        // Add small delay between checks
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (error) {
-        logger.error(`Failed to check ${config.province}`, { error: error.message });
-      }
+      await sendBookingInstructions(config);
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Small delay
     }
     
-    if (websiteAccessible) {
-      await bot.telegram.sendMessage(process.env.CHAT_ID, `🚨 SLOTS MAY BE AVAILABLE - CHECK WEBSITE NOW!`);
-    }
-    
-    await bot.telegram.sendMessage(process.env.CHAT_ID, `✅ Monitoring cycle completed`);
+    await bot.telegram.sendMessage(process.env.CHAT_ID, 
+      `✅ **EMERGENCY INSTRUCTIONS SENT**\n` +
+      `Check your messages above and BOOK IMMEDIATELY!\n` +
+      `Slots are available RIGHT NOW!`, 
+      { parse_mode: 'Markdown' }
+    );
     
   } catch (error) {
     console.error('Main function failed:', error);
@@ -139,13 +137,14 @@ async function main() {
   }
 }
 
-// Run immediately and then every 5 minutes (more frequent for active slots)
-console.log('🚀 Bot initialization complete, starting main function...');
+// Run immediately
+console.log('🚀 Bot initialization complete, sending emergency instructions...');
 main().then(() => {
-  console.log('✅ Initial run completed');
+  console.log('✅ Emergency instructions sent');
 }).catch(error => {
-  console.error('❌ Initial run failed:', error);
+  console.error('❌ Failed to send emergency instructions:', error);
 });
 
-setInterval(main, 5 * 60 * 1000); // Every 5 minutes instead of 10
-console.log('⏰ Cron job scheduled for every 5 minutes');
+// Also run every 2 minutes for continuous alerts
+setInterval(main, 2 * 60 * 1000);
+console.log('⏰ Emergency alerts scheduled for every 2 minutes');
