@@ -1,5 +1,5 @@
 {
-  "name": "emergency-booking",
+  "name": "fully-automated-booking",
   "version": "1.0.0",
   "main": "bot.js",
   "scripts": { 
@@ -8,6 +8,10 @@
   "dependencies": {
     "dotenv": "^16.4.5",
     "telegraf": "^4.16.3",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "puppeteer": "^21.0.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "puppeteer-extra-plugin-recaptcha": "^3.6.8"
   }
 }
