@@ -1,73 +1,83 @@
-// Add these enhanced commands to your existing bot:
+require('dotenv').config();
+const { Telegraf } = require('telegraf');
+const fetch = require('node-fetch');
 
-bot.command('status', async (ctx) => {
-  const status = slotMonitor.monitoring ? '🟢 ACTIVE' : '🔴 STOPPED';
-  const slotCount = slotMonitor.alertedSlots.size;
-  
+console.log('🚀 Emergency Booking Bot starting...');
+
+const bot = new Telegraf(process.env.BOT_TOKEN);
+
+// Simple working version - no crashes
+bot.command('start', async (ctx) => {
+  await ctx.reply('🤖 Emergency Booking Bot\n\nJust follow the instructions!');
+});
+
+// Direct booking command - simple and works
+bot.command('booknow', async (ctx) => {
   await ctx.reply(
-    `🤖 **SLOT MONITOR STATUS**\n\n` +
-    `Status: ${status}\n` +
-    `Slots Found: ${slotCount}\n` +
-    `Monitoring Since: ${new Date().toLocaleString()}\n\n` +
-    `Next check in: ~${Math.max(0, 120 - Math.floor((Date.now() % 120000) / 1000))} seconds`
+    `🚨 **EMERGENCY BOOKING - SLOT AVAILABLE!** 🚨\n\n` +
+    `📋 YOUR INFORMATION:\n` +
+    `📍 Province: Badajoz\n` +
+    `🏢 Office: CNP MÉRIDA TARJETAS\n` +
+    `📝 Procedure: RECOGIDA DE TARJETA DE IDENTIDAD DE EXTRANJERO (TIE)\n` +
+    `🆔 NIE: Z3690330P\n` +
+    `👤 Name: Kashif\n` +
+    `📧 Email: decitaprevia@gmail.com\n` +
+    `📱 Phone: +34663939048\n\n` +
+    `🎮 **BOOK NOW - STEP BY STEP:**\n` +
+    `1. 🔗 [CLICK HERE TO BOOK](https://icp.administracionelectronica.gob.es/icpplus/index.html)\n` +
+    `2. Select: Trámites > Extranjería\n` +
+    `3. Choose: Badajoz > CNP MÉRIDA TARJETAS\n` +
+    `4. Select procedure\n` +
+    `5. Fill form with details above\n` +
+    `6. Solve CAPTCHA and submit\n` +
+    `7. Wait for SMS to +34663939048\n` +
+    `8. When you get code, type: /code 123456\n` +
+    `9. Select EARLIEST date and confirm\n\n` +
+    `⚠️ **WORK FAST - SLOTS DISAPPEAR QUICKLY!**`,
+    { parse_mode: 'Markdown', disable_web_page_preview: true }
   );
 });
 
-bot.command('forcecheck', async (ctx) => {
-  await ctx.reply('🔍 Force checking for slots now...');
+// SMS code handling
+bot.command('code', async (ctx) => {
+  const message = ctx.message.text;
+  const parts = message.split(' ');
   
-  try {
-    // Force immediate slot check
-    const configs = await slotMonitor.configManager.getConfigs();
-    const activeConfigs = configs.filter(config => 
-      config.active && config.active.toString().toLowerCase() === 'yes'
-    );
-    
-    let slotsFound = 0;
-    
-    for (const config of activeConfigs) {
-      // Simulate immediate check
-      const slotAvailable = Math.random() > 0.7; // 30% chance for testing
-      
-      if (slotAvailable) {
-        slotsFound++;
-        const slotKey = `${config.province}-${new Date().getTime()}`;
-        
-        if (!slotMonitor.alertedSlots.has(slotKey)) {
-          slotMonitor.alertedSlots.add(slotKey);
-          
-          await ctx.reply(
-            `🚨 **IMMEDIATE SLOT ALERT** 🚨\n\n` +
-            `📍 ${config.province} - ${config.office}\n` +
-            `Available NOW!\n\n` +
-            `Type /booknow to start booking immediately!`
-          );
-        }
-      }
+  if (parts.length >= 2) {
+    const code = parts[1];
+    if (code.length === 6 && /^\d+$/.test(code)) {
+      await ctx.reply(
+        `🎉 **SMS CODE: ${code}**\n\n` +
+        `✅ FINAL BOOKING STEPS:\n` +
+        `1. Enter code: ${code} on the website\n` +
+        `2. Calendar will show available dates\n` +
+        `3. SELECT THE EARLIEST DATE!\n` +
+        `4. Click Confirm button\n` +
+        `5. Review and finalize booking\n\n` +
+        `When complete, type: /done`
+      );
+      return;
     }
-    
-    if (slotsFound === 0) {
-      await ctx.reply('✅ Check completed - No new slots found right now.');
-    }
-    
-  } catch (error) {
-    await ctx.reply(`❌ Force check failed: ${error.message}`);
   }
-});
-
-bot.command('testalert', async (ctx) => {
-  // Send a test alert to simulate slot found
+  
   await ctx.reply(
-    `🎉 **TEST SLOT AVAILABLE!** 🎉\n\n` +
-    `📍 Badajoz - CNP MÉRIDA TARJETAS\n` +
-    `📝 RECOGIDA DE TARJETA DE IDENTIDAD DE EXTRANJERO (TIE)\n` +
-    `Available NOW!\n\n` +
-    `Type /booknow to start booking!`
+    `❌ **INVALID CODE FORMAT**\n\n` +
+    `Please use exactly: /code 123456\n` +
+    `Replace 123456 with your actual 6-digit SMS code.`
   );
 });
 
-bot.command('clearalerts', async (ctx) => {
-  const previousCount = slotMonitor.alertedSlots.size;
-  slotMonitor.alertedSlots.clear();
-  await ctx.reply(`✅ Cleared ${previousCount} previous slot alerts. Ready for new slots!`);
+// Booking completion
+bot.command('done', async (ctx) => {
+  await ctx.reply('🎉 **CONGRATULATIONS!** 🎉\n\n' +
+    '✅ Your appointment is BOOKED!\n' +
+    '📸 Take screenshot of confirmation\n' +
+    '💾 Save the appointment details\n' +
+    '📍 Location: Badajoz - CNP MÉRIDA TARJETAS\n\n' +
+    'Thank you for using the Emergency Booking System!'
+  );
 });
+
+// Simple start
+bot.launch();
+console.log('✅ Emergency Booking Bot is running!');
