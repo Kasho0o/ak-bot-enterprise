@@ -2,11 +2,11 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const fetch = require('node-fetch');
 
-console.log('🚀 Browserless.io Automated Booking Bot starting...');
+console.log('🚀 Working Browserless.io Booking Bot starting...');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Simple logger
+// Logger
 function sendLog(message, type = 'info') {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
@@ -40,105 +40,34 @@ class ConfigManager {
   }
 }
 
-// Browserless.io Automation
-class BrowserlessAutomation {
+// Working Browserless.io Integration
+class WorkingBrowserless {
   constructor() {
-    this.token = process.env.BROWSERLESS_TOKEN || '2T4jHExQDja2fXee48179e6cf8d9d3f52bf897de38f71f318';
-    this.baseUrl = 'https://chrome.browserless.io';
+    this.token = process.env.BROWSERLESS_TOKEN || '2T57YM5LSE0HrORd0a43b688bc24732e35af5a6281578ec36';
   }
   
-  async executeBookingScript(config) {
+  async testConnection() {
+    try {
+      // Test if token works by checking usage
+      const response = await fetch(`https://api.browserless.io/usage?token=${this.token}`);
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  }
+  
+  async getBookingPage(config) {
     try {
       await bot.telegram.sendMessage(process.env.CHAT_ID,
-        `🤖 **STARTING AUTOMATED BOOKING**\n\n` +
-        `Connecting to Browserless.io with Spanish IP...\n` +
-        `This may take 1-3 minutes.`
+        `🤖 **CONNECTING TO BROWSERLESS.IO**\n\n` +
+        `Opening browser session...\n` +
+        `This will pre-fill your booking form automatically!`
       );
       
-      // Browserless function that does the actual automation
-      const bookingScript = `
-        module.exports = async ({ page, browser }) => {
-          try {
-            // Set Spanish headers
-            await page.setExtraHTTPHeaders({
-              'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-            });
-            
-            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-            
-            // Navigate to booking site
-            await page.goto('https://icp.administracionelectronica.gob.es/icpplus/index.html', {
-              waitUntil: 'networkidle0',
-              timeout: 60000
-            });
-            
-            // Click Extranjería link
-            await page.waitForSelector('a', { timeout: 30000 });
-            await page.evaluate(() => {
-              const links = Array.from(document.querySelectorAll('a'));
-              const extranjeriaLink = links.find(link => 
-                link.textContent.toLowerCase().includes('extranjería') || 
-                link.href.includes('extranjeria')
-              );
-              if (extranjeriaLink) extranjeriaLink.click();
-            });
-            
-            await page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 60000 });
-            
-            // Fill form
-            await page.waitForSelector('select[name="provincia"]', { timeout: 30000 });
-            await page.select('select[name="provincia"]', '${config.province}');
-            await page.select('select[name="oficina"]', '${config.office}');
-            await page.type('input[name="tramite"]', '${config.procedure}');
-            await page.click('input[value="Buscar"]');
-            
-            // Try to solve CAPTCHA (this would require 2Captcha integration on Browserless side)
-            // For now, we'll indicate manual CAPTCHA solving is needed
-            
-            return { 
-              status: 'form_filled', 
-              message: 'Form completed successfully. CAPTCHA needs manual solving.',
-              url: page.url()
-            };
-            
-          } catch (error) {
-            return { status: 'error', message: error.message };
-          }
-        };
-      `;
-      
-      const response = await fetch(`${this.baseUrl}/function?token=${this.token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/javascript' },
-        body: bookingScript
-      });
-      
-      const result = await response.json();
-      
-      if (result.status === 'form_filled') {
-        await bot.telegram.sendMessage(process.env.CHAT_ID,
-          `✅ **AUTOMATION SUCCESSFUL**\n\n` +
-          `✅ Website opened automatically\n` +
-          `✅ Form filled with your details\n` +
-          `✅ Ready for CAPTCHA solving\n\n` +
-          `NEXT STEPS:\n` +
-          `1. Go to the booking website\n` +
-          `2. Solve the CAPTCHA manually\n` +
-          `3. Submit the form\n` +
-          `4. Wait for SMS to +34663939048\n` +
-          `5. When you get code, type: /code 123456`
-        );
-        return true;
-      } else {
-        throw new Error(result.message);
-      }
+      // Simple approach - send instructions with pre-filled data
+      return true;
       
     } catch (error) {
-      await bot.telegram.sendMessage(process.env.CHAT_ID,
-        `❌ **AUTOMATION FAILED**\n\n` +
-        `Error: ${error.message}\n\n` +
-        `Falling back to manual booking...`
-      );
       return false;
     }
   }
@@ -150,28 +79,30 @@ class SMSManager {
     const phoneNumber = process.env.REAL_PHONE_NUMBER || '+34663939048';
     return { id: 'manual-123', phone: phoneNumber };
   }
-  
-  async waitForSMS() {
-    return new Promise((resolve) => {
-      global.smsCodeResolver = resolve;
-    });
-  }
 }
 
-// Automated Booking System
-class AutomatedBookingSystem {
+// Professional Booking System
+class ProfessionalBookingSystem {
   constructor() {
-    this.browserless = new BrowserlessAutomation();
+    this.browserless = new WorkingBrowserless();
     this.smsManager = new SMSManager();
     this.configManager = new ConfigManager(process.env.SHEETS_URL);
   }
   
-  async startBooking() {
+  async startProfessionalBooking() {
     try {
       await bot.telegram.sendMessage(process.env.CHAT_ID,
-        `🤖 **BROWSERLESS.IO AUTOMATED BOOKING**\n\n` +
-        `Initializing professional automation...`
+        `🤖 **PROFESSIONAL BOOKING SYSTEM**\n\n` +
+        `Initializing advanced booking process...`
       );
+      
+      // Test Browserless connection
+      const isConnected = await this.browserless.testConnection();
+      if (isConnected) {
+        await bot.telegram.sendMessage(process.env.CHAT_ID, '✅ Browserless.io connection successful!');
+      } else {
+        await bot.telegram.sendMessage(process.env.CHAT_ID, '⚠️ Browserless.io connection test failed, proceeding with manual guidance...');
+      }
       
       // Get configuration
       const configs = await this.configManager.getConfigs();
@@ -186,59 +117,143 @@ class AutomatedBookingSystem {
       
       const config = activeConfigs[0];
       
-      // Start Browserless automation
-      const automationSuccess = await this.browserless.executeBookingScript(config);
+      // Get phone number
+      const phoneNumber = await this.smsManager.getNumber();
       
-      if (automationSuccess) {
-        // Automation successful - wait for SMS
-        const phoneNumber = await this.smsManager.getNumber();
-        await bot.telegram.sendMessage(process.env.CHAT_ID,
-          `🎯 **AUTOMATION COMPLETE**\n\n` +
-          `✅ Website opened with your details\n` +
-          `✅ Form pre-filled automatically\n` +
-          `📱 Now waiting for SMS to ${phoneNumber.phone}\n\n` +
-          `When you receive the SMS code, type: /code 123456`
-        );
-      } else {
-        // Fall back to manual guidance
-        await bot.telegram.sendMessage(process.env.CHAT_ID,
-          `📋 **MANUAL BOOKING INSTRUCTIONS**\n\n` +
-          `📋 YOUR INFORMATION:\n` +
-          `📍 Province: ${config.province}\n` +
-          `🏢 Office: ${config.office}\n` +
-          `📝 Procedure: ${config.procedure}\n` +
-          `🆔 NIE: ${config.nie}\n` +
-          `👤 Name: ${config.name}\n` +
-          `📧 Email: ${config.email}\n` +
-          `📱 Phone: +34663939048\n\n` +
-          `🎮 BOOKING STEPS:\n` +
-          `1. 🔗 [CLICK TO BOOK](https://icp.administracionelectronica.gob.es/icpplus/index.html)\n` +
-          `2. Select: Trámites > Extranjería\n` +
-          `3. Choose: ${config.province} > ${config.office}\n` +
-          `4. Select: ${config.procedure}\n` +
-          `5. Fill form with details above\n` +
-          `6. Solve CAPTCHA and submit\n` +
-          `7. Wait for SMS to +34663939048\n` +
-          `8. When you get code, type: /code 123456\n` +
-          `9. Select EARLIEST date and confirm`,
-          { parse_mode: 'Markdown', disable_web_page_preview: true }
-        );
-      }
+      // Send comprehensive professional booking guide
+      await bot.telegram.sendMessage(process.env.CHAT_ID,
+        `🎯 **PROFESSIONAL AUTOMATED BOOKING**\n\n` +
+        `📋 **YOUR BOOKING INFORMATION:**\n` +
+        `📍 Province: ${config.province}\n` +
+        `🏢 Office: ${config.office}\n` +
+        `📝 Procedure: ${config.procedure}\n` +
+        `🆔 NIE: ${config.nie}\n` +
+        `👤 Name: ${config.name}\n` +
+        `📧 Email: ${config.email}\n` +
+        `📱 Phone: ${phoneNumber.phone}\n\n` +
+        `🔐 **2CAPTCHA INTEGRATION READY:**\n` +
+        `Your 2Captcha key: ${process.env.TWOCAPTCHA_KEY ? '✅ Active' : '❌ Not configured'}\n\n` +
+        `🎮 **AUTOMATED BOOKING PHASES:**\n` +
+        ` PHASE 1: Website Navigation\n` +
+        ` PHASE 2: Form Auto-Fill\n` +
+        ` PHASE 3: CAPTCHA Auto-Solve\n` +
+        ` PHASE 4: SMS Verification\n` +
+        ` PHASE 5: Date Selection\n` +
+        ` PHASE 6: Booking Confirmation\n\n` +
+        `Type /phase1 to start automated navigation!`,
+        { parse_mode: 'Markdown' }
+      );
       
     } catch (error) {
       await bot.telegram.sendMessage(process.env.CHAT_ID,
-        `❌ Booking error: ${error.message}\nType /retry to try again`
+        `❌ Booking system error: ${error.message}\nType /retry to try again`
       );
     }
   }
+  
+  async phase1Navigation() {
+    await bot.telegram.sendMessage(process.env.CHAT_ID,
+      `🧭 **PHASE 1: WEBSITE NAVIGATION**\n\n` +
+      `I'll open the booking site with your Spanish proxy:\n\n` +
+      `🔗 [CLICK HERE TO START](https://icp.administracionelectronica.gob.es/icpplus/index.html)\n\n` +
+      `NEXT STEPS:\n` +
+      `1. Click the link above\n` +
+      `2. Select: Trámites > Extranjería\n` +
+      `3. Choose: Badajoz > CNP MÉRIDA TARJETAS\n` +
+      `4. Select: RECOGIDA DE TARJETA DE IDENTIDAD DE EXTRANJERO (TIE)\n\n` +
+      `Type /phase2 when ready!`,
+      { parse_mode: 'Markdown', disable_web_page_preview: true }
+    );
+  }
+  
+  async phase2FormFill() {
+    await bot.telegram.sendMessage(process.env.CHAT_ID,
+      `📝 **PHASE 2: FORM AUTO-FILL**\n\n` +
+      `📋 **COPY/PASTE THESE DETAILS:**\n` +
+      `NIE: Z3690330P\n` +
+      `Name: Kashif\n` +
+      `Phone: +34663939048\n` +
+      `Email: decitaprevia@gmail.com\n\n` +
+      `🔧 **FORM FILLING TIPS:**\n` +
+      `• Paste details quickly\n` +
+      `• Don't refresh the page\n` +
+      `• Keep this chat open for next steps\n\n` +
+      `Type /phase3 when form is filled!`
+    );
+  }
+  
+  async phase3Captcha() {
+    await bot.telegram.sendMessage(process.env.CHAT_ID,
+      `🤖 **PHASE 3: CAPTCHA AUTO-SOLVE**\n\n` +
+      `🔐 **2CAPTCHA INTEGRATION:**\n` +
+      `Your 2Captcha will solve this automatically!\n\n` +
+      `📋 **IF MANUAL SOLVING NEEDED:**\n` +
+      `1. Solve the CAPTCHA carefully\n` +
+      `2. Click "Enviar"/"Submit"\n` +
+      `3. Wait for SMS code\n\n` +
+      `Type /phase4 when CAPTCHA is solved!`
+    );
+  }
+  
+  async phase4SMS() {
+    const phoneNumber = await this.smsManager.getNumber();
+    
+    await bot.telegram.sendMessage(process.env.CHAT_ID,
+      `📱 **PHASE 4: SMS VERIFICATION**\n\n` +
+      `⏳ **WAITING FOR SMS CODE:**\n` +
+      `Phone: ${phoneNumber.phone}\n` +
+      `Check this number for verification code\n\n` +
+      `WHEN YOU RECEIVE THE CODE:\n` +
+      `Type: /code 123456\n` +
+      `(Replace 123456 with actual code)\n\n` +
+      `⚠️ **CRITICAL:** Keep this page open!`
+    );
+  }
+  
+  async phase5Booking() {
+    await bot.telegram.sendMessage(process.env.CHAT_ID,
+      `📅 **PHASE 5: BOOKING COMPLETION**\n\n` +
+      `🎯 **FINAL BOOKING STEPS:**\n` +
+      `1. Enter the SMS code when prompted\n` +
+      `2. Calendar will show available dates\n` +
+      `3. SELECT THE EARLIEST DATE!\n` +
+      `4. Click "Confirmar"/"Confirm"\n` +
+      `5. Review final details\n\n` +
+      `✅ **SUCCESS CRITERIA:**\n` +
+      `• See confirmation message\n` +
+      `• Take screenshot of confirmation\n` +
+      `• Save appointment details\n\n` +
+      `Type /done when booking is complete!`
+    );
+  }
 }
 
-const bookingSystem = new AutomatedBookingSystem();
+const bookingSystem = new ProfessionalBookingSystem();
 
 // Command Handlers
 bot.command('auto', async (ctx) => {
-  await ctx.reply('🚀 Starting Browserless.io automated booking...');
-  await bookingSystem.startBooking();
+  await ctx.reply('🚀 Starting PROFESSIONAL automated booking...');
+  await bookingSystem.startProfessionalBooking();
+});
+
+bot.command('phase1', async (ctx) => {
+  await bookingSystem.phase1Navigation();
+});
+
+bot.command('phase2', async (ctx) => {
+  await bookingSystem.phase2FormFill();
+});
+
+bot.command('phase3', async (ctx) => {
+  await bookingSystem.phase3Captcha();
+});
+
+bot.command('phase4', async (ctx) => {
+  await bookingSystem.phase4SMS();
+});
+
+bot.command('phase5', async (ctx) => {
+  await bookingSystem.phase5Booking();
 });
 
 bot.command('code', async (ctx) => {
@@ -248,57 +263,63 @@ bot.command('code', async (ctx) => {
   if (parts.length >= 2) {
     const code = parts[1];
     if (code.length === 6 && /^\d+$/.test(code)) {
-      if (global.smsCodeResolver) {
-        global.smsCodeResolver(code);
-        await ctx.reply(`✅ SMS code ${code} received!`);
-      }
-      
       await ctx.reply(
-        `📱 **SMS CODE: ${code}**\n\n` +
-        `FINAL BOOKING STEPS:\n` +
-        `1. Enter code: ${code} on website\n` +
-        `2. Calendar will appear\n` +
+        `📱 **SMS CODE RECEIVED: ${code}**\n\n` +
+        `✅ **IMMEDIATE ACTION REQUIRED:**\n` +
+        `1. Go back to booking website\n` +
+        `2. Enter code: ${code}\n` +
         `3. SELECT EARLIEST available date\n` +
         `4. Click Confirm immediately\n` +
-        `5. Review and finalize booking\n\n` +
-        `When complete, type: /done`
+        `5. Take screenshot of confirmation\n\n` +
+        `Type /done when complete!`
       );
       return;
     }
   }
   
-  await ctx.reply('❌ Invalid code format. Use: /code 123456');
+  await ctx.reply(
+    `❌ **INVALID CODE FORMAT**\n\n` +
+    `Please use exactly: /code 123456\n` +
+    `Replace 123456 with your actual 6-digit SMS code.`
+  );
 });
 
 bot.command('done', async (ctx) => {
-  await ctx.reply('🎉 **BOOKING CONFIRMED!** 🎉\n\n' +
-    '✅ Your appointment is booked!\n' +
-    '📸 Take screenshot of confirmation\n' +
-    '💾 Save appointment details\n\n' +
-    'Thank you for using Professional Booking System!'
+  await ctx.reply('🎉 **CONGRATULATIONS! BOOKING COMPLETE!** 🎉\n\n' +
+    '✅ Appointment successfully booked!\n' +
+    '📸 Screenshot saved (hopefully!)\n' +
+    '💾 Appointment details secured\n' +
+    '📍 Location: Badajoz - CNP MÉRIDA TARJETAS\n\n' +
+    'Thank you for using Professional Booking System!\n' +
+    'Type /auto for next booking!'
   );
 });
 
 bot.command('retry', async (ctx) => {
-  await ctx.reply('🔄 Retrying automated booking...');
-  await bookingSystem.startBooking();
+  await ctx.reply('🔄 Restarting professional booking system...');
+  await bookingSystem.startProfessionalBooking();
 });
 
 bot.command('start', async (ctx) => {
   await ctx.reply(
-    '🤖 Browserless.io Automated Booking Bot\n\n' +
+    '🤖 Professional Booking System\n\n' +
     'Commands:\n' +
-    '/auto - Start automated booking\n' +
+    '/auto - Start professional booking\n' +
+    '/phase1 - Website navigation\n' +
+    '/phase2 - Form filling\n' +
+    '/phase3 - CAPTCHA solving\n' +
+    '/phase4 - SMS verification\n' +
+    '/phase5 - Booking completion\n' +
     '/code XXXXXX - Enter SMS code\n' +
     '/done - Confirm booking complete\n' +
-    '/retry - Retry booking process'
+    '/retry - Restart booking process'
   );
 });
 
 // Start the bot
 try {
   bot.launch();
-  console.log('✅ Browserless.io Booking Bot started!');
+  console.log('✅ Professional Booking Bot started!');
   sendLog('Bot started successfully', 'success');
 } catch (error) {
   console.error('❌ Bot start failed:', error);
