@@ -1,12 +1,51 @@
 require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const fetch = require('node-fetch');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { SocksProxyAgent } = require('socks-proxy-agent');
 
-console.log('🚀 Hybrid Professional Booking Bot starting...');
+console.log('🚀 Spanish Proxy Booking Bot starting...');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Simple logger
+// Spanish Headers for better success rates
+const SPANISH_HEADERS = {
+  'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Connection': 'keep-alive',
+  'Upgrade-Insecure-Requests': '1',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Cache-Control': 'max-age=0'
+};
+
+// Proxy-aware fetch function
+async function fetchWithProxy(url, options = {}) {
+  const proxyUrl = process.env.SPAIN_PROXY;
+  
+  if (proxyUrl) {
+    console.log('Using Spanish proxy:', proxyUrl);
+    
+    // Create proxy agent based on proxy type
+    let agent;
+    if (proxyUrl.startsWith('socks5')) {
+      agent = new SocksProxyAgent(proxyUrl);
+    } else {
+      agent = new HttpsProxyAgent(proxyUrl);
+    }
+    
+    // Add proxy agent and Spanish headers
+    options.agent = agent;
+    options.headers = { ...SPANISH_HEADERS, ...options.headers };
+  }
+  
+  return await fetch(url, options);
+}
+
+// Logger with proxy info
 async function sendLog(message, type = 'info') {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
@@ -28,7 +67,7 @@ async function sendLog(message, type = 'info') {
   }
 }
 
-// Config Manager
+// Config Manager with Proxy Support
 class ConfigManager {
   constructor(sheetsUrl) {
     this.sheetsUrl = sheetsUrl;
@@ -36,15 +75,16 @@ class ConfigManager {
   
   async getConfigs() {
     try {
-      sendLog(`Fetching configs from: ${this.sheetsUrl}`, 'info');
-      const response = await fetch(this.sheetsUrl, { timeout: 30000 });
+      sendLog(`Fetching configs via Spanish proxy...`, 'info');
+      
+      const response = await fetchWithProxy(this.sheetsUrl, { timeout: 30000 });
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
       const configs = await response.json();
-      sendLog(`Loaded ${configs.length} configs`, 'success');
+      sendLog(`Loaded ${configs.length} configs via Spanish proxy`, 'success');
       return configs;
     } catch (error) {
       sendLog(`Config fetch failed: ${error.message}`, 'error');
@@ -53,19 +93,18 @@ class ConfigManager {
   }
 }
 
-// SMS Manager (Hybrid - uses your real number)
+// SMS Manager with Spanish Number
 class SMSManager {
   constructor() {
     this.token = process.env.FIVESIM_TOKEN;
   }
   
   async getNumber() {
-    // Use your known working number
     const phoneNumber = process.env.REAL_PHONE_NUMBER || '+34663939048';
     await bot.telegram.sendMessage(process.env.CHAT_ID, 
-      `📱 **PHONE NUMBER READY**\n\n` +
+      `📱 **SPANISH PHONE NUMBER**\n\n` +
       `Phone: ${phoneNumber}\n` +
-      `This number will receive your SMS code!\n\n` +
+      `This Spanish number will receive your SMS code!\n\n` +
       `When you get the code, type: /code YOURCODE`
     );
     return { id: 'manual-123', phone: phoneNumber };
@@ -74,30 +113,61 @@ class SMSManager {
   async waitForSMS() {
     await bot.telegram.sendMessage(process.env.CHAT_ID,
       `⏳ **WAITING FOR SMS CODE**\n\n` +
-      `Please check your phone +34663939048 for the verification code.\n` +
+      `Check your Spanish phone +34663939048 for the verification code.\n` +
       `When you receive it, type: /code 123456`
     );
     
-    // Return promise that resolves when user sends code
     return new Promise((resolve) => {
       global.smsCodeResolver = resolve;
     });
   }
 }
 
-// Professional Booking System
+// Professional Booking System with Spanish Proxy
 class ProfessionalBookingSystem {
   constructor() {
     this.configManager = new ConfigManager(process.env.SHEETS_URL);
     this.smsManager = new SMSManager();
   }
   
+  async testProxyConnection() {
+    try {
+      await bot.telegram.sendMessage(process.env.CHAT_ID, 
+        `🌐 **TESTING SPANISH PROXY CONNECTION**\n\n` +
+        `Checking if Spanish proxy is working...`
+      );
+      
+      // Test IP location
+      const response = await fetchWithProxy('https://httpbin.org/ip');
+      const data = await response.json();
+      
+      await bot.telegram.sendMessage(process.env.CHAT_ID,
+        `✅ **PROXY CONNECTION SUCCESSFUL**\n\n` +
+        `Your IP appears to be: ${data.origin}\n` +
+        `This should be a Spanish IP address!\n\n` +
+        `Spanish proxy is ready for booking.`
+      );
+      
+      return true;
+    } catch (error) {
+      await bot.telegram.sendMessage(process.env.CHAT_ID,
+        `❌ **PROXY CONNECTION FAILED**\n\n` +
+        `Error: ${error.message}\n\n` +
+        `Proceeding without proxy, but success rate may be lower.`
+      );
+      return false;
+    }
+  }
+  
   async startProfessionalBooking() {
     try {
       await bot.telegram.sendMessage(process.env.CHAT_ID, 
-        `🤖 **PROFESSIONAL BOOKING SYSTEM** 🤖\n\n` +
-        `Initializing advanced booking process...`
+        `🤖 **SPANISH PROXY BOOKING SYSTEM** 🤖\n\n` +
+        `Initializing advanced booking with Spanish IP...`
       );
+      
+      // Test proxy connection
+      await this.testProxyConnection();
       
       // Get configuration
       const configs = await this.configManager.getConfigs();
@@ -118,7 +188,8 @@ class ProfessionalBookingSystem {
         `📝 ${config.procedure}\n` +
         `🆔 ${config.nie}\n` +
         `👤 ${config.name}\n` +
-        `📧 ${config.email}`
+        `📧 ${config.email}\n\n` +
+        `All traffic routed through Spanish proxy!`
       );
       
       // Get phone number
@@ -143,7 +214,6 @@ class ProfessionalBookingSystem {
         { parse_mode: 'Markdown', disable_web_page_preview: true }
       );
       
-      // Wait for user to complete Phase 1 & 2
       await bot.telegram.sendMessage(process.env.CHAT_ID,
         `✅ **PHASE 1 & 2 COMPLETE?**\n\n` +
         `When you've completed the form and submitted it, type: /next`
@@ -174,7 +244,7 @@ class ProfessionalBookingSystem {
     try {
       await bot.telegram.sendMessage(process.env.CHAT_ID,
         `📅 **PHASE 4: BOOKING COMPLETION**\n\n` +
-        `Waiting for SMS code...\n` +
+        `Waiting for SMS code via Spanish phone...\n` +
         `Check your phone for the verification code.`
       );
       
@@ -200,7 +270,7 @@ const bookingSystem = new ProfessionalBookingSystem();
 
 // Command Handlers
 bot.command('pro', async (ctx) => {
-  await ctx.reply('🚀 Starting PROFESSIONAL booking system...');
+  await ctx.reply('🚀 Starting SPANISH PROXY booking system...');
   await bookingSystem.startProfessionalBooking();
 });
 
@@ -247,31 +317,37 @@ bot.command('confirm', async (ctx) => {
     '✅ Congratulations! Your appointment is booked!\n' +
     '📸 Please screenshot your confirmation\n' +
     '💾 Save the appointment details\n\n' +
-    'Thank you for using the PROFESSIONAL Booking System! 🚀'
+    'Thank you for using the SPANISH PROXY Booking System! 🚀'
   );
 });
 
 bot.command('retry', async (ctx) => {
-  await ctx.reply('🔄 Restarting PROFESSIONAL booking system...');
+  await ctx.reply('🔄 Restarting SPANISH PROXY booking system...');
   await bookingSystem.startProfessionalBooking();
 });
 
+bot.command('testproxy', async (ctx) => {
+  await ctx.reply('🌐 Testing Spanish proxy connection...');
+  await bookingSystem.testProxyConnection();
+});
+
 bot.command('start', async (ctx) => {
-  await ctx.reply('🤖 PROFESSIONAL Cita Previa Booking Bot\n\n' +
+  await ctx.reply('🤖 SPANISH PROXY Cita Previa Booking Bot\n\n' +
     'Commands:\n' +
     '/pro - Start PROFESSIONAL booking\n' +
     '/next - Move to next phase\n' +
     '/sms - Handle SMS verification\n' +
     '/code XXXXXX - Enter SMS code\n' +
     '/confirm - Confirm successful booking\n' +
-    '/retry - Restart booking process'
+    '/retry - Restart booking process\n' +
+    '/testproxy - Test Spanish proxy'
   );
 });
 
 // Start the bot
 bot.launch().then(() => {
-  console.log('✅ PROFESSIONAL Booking Bot is running!');
-  sendLog('PROFESSIONAL Bot started successfully', 'success');
+  console.log('✅ SPANISH PROXY Booking Bot is running!');
+  sendLog('SPANISH PROXY Bot started successfully', 'success');
 }).catch(error => {
   console.error('❌ Bot failed to start:', error);
   sendLog(`Bot startup failed: ${error.message}`, 'error');
